@@ -8,7 +8,11 @@ from sklearn.preprocessing import Imputer
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import cross_val_score
 from xgboost import XGBRegressor
-
+from sklearn.ensemble.partial_dependence import partial_dependence, plot_partial_dependence
+from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
+import matplotlib
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import make_pipeline
 
 
 ######################_getting_data_from_files_######################
@@ -24,6 +28,11 @@ predicting_data = pd.read_csv(predicting_data_file_path)
 
 
 ######################_selecting_affecting_columns_##################
+
+# any variable updated (or created) after the target value is realized should be excluded to prevent Leaky Predictors
+
+# to get the size of data
+# train_data.shape
 all_cols=train_data.columns 
 
 # if selecting all columns drop predicting column
@@ -66,6 +75,7 @@ predicting_X=predicting_X_encoded
 
 
 ######################_null_col_handling_############################
+# #no use if using pipeline
 # handling null columns
 # checking null cols #train_data.isnull().any()
 
@@ -76,33 +86,33 @@ predicting_X=predicting_X_encoded
 
 #using SimpleImputer
 # for training data
-imputed_X_train = train_X.copy()
-imputed_X_test = test_X.copy()
+# imputed_X_train = train_X.copy()
+# imputed_X_test = test_X.copy()
 
 # for predicting data
-imputed_predicting_X=predicting_X.copy()
+# imputed_predicting_X=predicting_X.copy()
 
 # cols with null in training data
-cols_with_missing_training_data = (col for col in train_X.columns if train_X[col].isnull().any())
+# cols_with_missing_training_data = (col for col in train_X.columns if train_X[col].isnull().any())
 
 # cols with null in predicting data
-cols_with_missing_predicting_data=(col for col in predicting_X.columns if predicting_X[col].isnull().any())
+# cols_with_missing_predicting_data=(col for col in predicting_X.columns if predicting_X[col].isnull().any())
 
 # set of all null cols
-cols_with_missing=list(set(list(cols_with_missing_training_data)+list(cols_with_missing_predicting_data)))
+# cols_with_missing=list(set(list(cols_with_missing_training_data)+list(cols_with_missing_predicting_data)))
 
-for col in cols_with_missing:
-    imputed_X_train[col + '_was_missing'] = imputed_X_train[col].isnull()
-    imputed_X_test[col + '_was_missing'] = imputed_X_test[col].isnull()
-    imputed_predicting_X[col + '_was_missing'] = imputed_predicting_X[col].isnull()
+# for col in cols_with_missing:
+#     imputed_X_train[col + '_was_missing'] = imputed_X_train[col].isnull()
+#     imputed_X_test[col + '_was_missing'] = imputed_X_test[col].isnull()
+#     imputed_predicting_X[col + '_was_missing'] = imputed_predicting_X[col].isnull()
 
-imputer = Imputer()
+# imputer = Imputer()
 # imputering data in training data
-imputed_X_train = imputer.fit_transform(imputed_X_train) #fit imputer and transform data
-imputed_X_test = imputer.transform(imputed_X_test) #transform data
+# imputed_X_train = imputer.fit_transform(imputed_X_train) #fit imputer and transform data
+# imputed_X_test = imputer.transform(imputed_X_test) #transform data
 
 # imputering data in predicting data
-imputed_predicting_X = imputer.transform(imputed_predicting_X)
+# imputed_predicting_X = imputer.transform(imputed_predicting_X)
 #####################################################################
 
 
@@ -129,6 +139,8 @@ def get_MAE_nodes(max_leaf_nodes, training_X, predicting_X, training_y, predicti
 # get_mae_model(DecisionTreeRegressor(),imputed_X_train,train_y)
 # get_mae_model(RandomForestRegressor(),imputed_X_train,train_y)
 # get_mae_model(XGBRegressor(),imputed_X_train,train_y)
+# get_mae_model(GradientBoostingRegressor(),imputed_X_train,train_y)
+
 #####################################################################
 
 
@@ -136,16 +148,55 @@ def get_MAE_nodes(max_leaf_nodes, training_X, predicting_X, training_y, predicti
 ######################_trainging_the_model_##########################
 # find the number of nodes for least MAE and create the model according to it
 # model=DecisionTreeRegressor(max_leaf_nodes=75,random_state=0)  #model with specifying max leaf nodes
+# model = GradientBoostingRegressor()
+# model.fit(imputed_X_train, train_y)
 # scpecify n_jobs for XGBRegressor if dataset is too large. assign num of cores in machine to n_jobs 
 # find using early_stopping_rounds and assign it to n_estimators, start with a big numner
-model=XGBRegressor(n_estimators=547,learning_rate=0.05)
-model.fit(imputed_X_train,train_y,early_stopping_rounds=20, eval_set=[(imputed_X_test, test_y)], verbose=True)
+# model=XGBRegressor(n_estimators=547,learning_rate=0.05)
+# model.fit(imputed_X_train,train_y,early_stopping_rounds=20, eval_set=[(imputed_X_test, test_y)], verbose=False)
+#####################################################################
+
+
+
+######################_using_pipeline_###############################
+# pipeline = make_pipeline(Imputer(), RandomForestRegressor())
+# pipeline.fit(train_X, train_y)
+# predictions = pipeline.predict(test_X)
+#####################################################################
+
+
+
+######################_plot_partial_dependence_######################
+# should be an instance of BaseGradientBoosting 
+# cols_to_use=['LotArea', 'YearBuilt','1stFlrSF','FullBath','BedroomAbvGr','TotRmsAbvGrd']
+# cols_to_use=all_cols
+# feature is defining which should be plotted from cols_to_use
+# y_plots = plot_partial_dependence(model, features=[0,1,2,3,4,5,6,7,8], X=imputed_X_train, feature_names=cols_to_use,grid_resolution=10)
+# matplotlib.pyplot.show(block=True)
+#####################################################################
+
+
+
+######################_cross_validation_#############################
+# use cross_val_score instead of train_test_split for small size data sets
+# this is not needed for large data sets. train_test_split is faster
+imputer_=Imputer()
+pipeline = make_pipeline(imputer_, XGBRegressor())
+pipeline.fit(X_encoded, y)
+
+# imputing predicting test using same imputer
+imputed_predicting_X = imputer_.transform(predicting_X)
+
+# possible methods for scoring =>'accuracy' , 'neg_mean_absolute_error'
+scores = cross_val_score(pipeline, X_encoded, y, scoring='neg_mean_absolute_error')
+print(scores)
 #####################################################################
 
 
 
 ######################_evaluating_the_model_#########################
-predicted_values_for_traininig_set=model.predict(imputed_X_test)
+# predicted_values_for_traininig_set=model.predict(imputed_X_test)
+# predicted_values_for_traininig_set=pipeline.predict(imputed_X_test)
 
 # print correct and predicted values
 # print("actual",'predicted\n')
@@ -153,13 +204,14 @@ predicted_values_for_traininig_set=model.predict(imputed_X_test)
 # 	print (val,predicted_values_for_traininig_set[idx])
 
 # print mean absolute error
-print("\nMAE:\t",mean_absolute_error(test_y,predicted_values_for_traininig_set))
+# print("\nMAE:\t",mean_absolute_error(test_y,predicted_values_for_traininig_set))
 #####################################################################
 
 
 
 ######################_prediction_for_required_data_#################
-predicted_result=model.predict(imputed_predicting_X)
+# predicted_result=model.predict(imputed_predicting_X)
+predicted_result=pipeline.predict(imputed_predicting_X)
 #####################################################################
 
 
