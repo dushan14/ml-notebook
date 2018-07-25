@@ -36,7 +36,7 @@ predicting_data = pd.read_csv(predicting_data_file_path)
 all_cols=train_data.columns 
 
 # if selecting all columns drop predicting column
-predicting_cols=all_cols.drop('SalePrice') 
+predicting_cols=all_cols.drop('trip_duration') 
 
 # predicting_cols=['LotArea', 'YearBuilt','1stFlrSF','FullBath','BedroomAbvGr','TotRmsAbvGrd']
 #####################################################################
@@ -45,7 +45,7 @@ predicting_cols=all_cols.drop('SalePrice')
 
 ######################_X_y_predictingX_##############################
 X=train_data[predicting_cols]
-y=train_data.SalePrice
+y=train_data.trip_duration
 
 predicting_X_=predicting_data[predicting_cols]
 #####################################################################
